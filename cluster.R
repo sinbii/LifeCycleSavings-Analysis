@@ -1,7 +1,6 @@
 # 내장 데이터 불러오기
 data("LifeCycleSavings")
-View(LifeCycleSavings)
-length(LifeCycleSavings)
+
 # 데이터 확인
 head(LifeCycleSavings)
 str(LifeCycleSavings)
@@ -31,46 +30,70 @@ km$centers      # 클러스터 중심
 table(km$cluster)
 
 library(ggplot2)
+library(dplyr)
 
 pca <- prcomp(df_scaled)
-pca_df <- data.frame(pca$x[, 1:2], cluster = factor(km$cluster))
-
-ggplot(pca_df, aes(PC1, PC2, color = cluster)) +
+pca_df <- data.frame(
+  경제력_저축능력 = pca$x[, 1],  
+  인구구조 = pca$x[, 2],        
+  cluster = factor(km$cluster,
+                   levels = c(1, 2, 3),
+                   labels = c("고저축형", "인구구조특수형", "저저축형"))
+)
+ggplot(pca_df, aes(x = 경제력_저축능력, y = 인구구조, color = cluster)) +
   geom_point(size = 3) +
+  labs(
+    x = "경제력·저축능력",
+    y = "인구구조",
+    color = "cluster"
+  ) +
   theme_minimal()
 
-# 빨 - 소득, 성장률, 저축률이 높은 국가
-# 초 - 인구 구조가 특이한 국가 (고령화 등)
-# 파 - 소득, 성장률, 저축률이 낮은 국가
 
-# >> 성장률은 높은데 저축률이 낮은 국가
-cbind(LifeCycleSavings, cluster = km$cluster) |>
-  subset(ddpi > median(ddpi) & sr < median(sr)) |>
-  head()
 
-# >> 예외적인 국가 찾기
-# 평균 대비 예외적 국가, “경제 성장률 대비 저축률이 낮은” 예외적 사례
-high_ddpi_low_sr <- subset(LifeCycleSavings, ddpi > mean(ddpi) & sr < mean(sr))
-high_ddpi_low_sr
+#클러스터 결과 추가
+df_clustered <- cbind(LifeCycleSavings, cluster = km$cluster)
+df_clustered$country <- rownames(df_clustered)
+
+#예외국가 찾기
+#성장률↑ + 저축률↓ 예외 국가
+high_ddpi_low_sr <- subset(df_clustered,
+                           ddpi > mean(ddpi) & sr < mean(sr))
+print("성장률 ↑ + 저축률 ↓ 예외 국가 (클러스터 포함):")
+print(high_ddpi_low_sr[, c("country", "cluster", "ddpi", "sr")])
+
+
+#예외국가 클러스터에 표시
 library(ggplot2)
+library(dplyr)
+library(ggrepel)  # 겹치지 않는 라벨용
 
-# 예외 국가 표시
-high_ddpi_low_sr <- subset(LifeCycleSavings, ddpi > mean(ddpi) & sr < mean(sr))
+# PCA 데이터에 국가명 추가
+pca_df <- data.frame(
+  country = rownames(df_scaled),
+  경제력_저축능력 = pca$x[, 1],  
+  인구구조 = pca$x[, 2],        
+  cluster = factor(km$cluster,
+                   levels = c(1, 2, 3),
+                   labels = c("고저축형", "인구구조특수형", "저저축형"))
+)
 
-ggplot(LifeCycleSavings, aes(x = ddpi, y = sr)) +
-  geom_point(color = "blue") +  # 전체 국가
-  geom_point(data = high_ddpi_low_sr, aes(x = ddpi, y = sr), color = "red", size = 3) + # 예외 국가
-  geom_smooth(method = "lm", se = FALSE, color = "black") + # 회귀선
-  geom_text(data = high_ddpi_low_sr, aes(label = rownames(high_ddpi_low_sr)), 
-            vjust = -1, color = "red", size = 3.5) + # 국가 이름 라벨
-  labs(title = "경제 성장률(ddpi) vs 저축률(sr) (예외 국가 강조)",
-       x = "경제 성장률 (ddpi)",
-       y = "저축률 (sr)")
+# 예외국가 선택
+exception_countries <- c("Korea", "Jamaica", "Libya", "Malaysia")
+exceptions <- pca_df %>% filter(country %in% exception_countries)
+
+# 그래프
+ggplot(pca_df, aes(x = 경제력_저축능력, y = 인구구조, color = cluster)) +
+  geom_point(size = 3) +  # 모든 국가
+  geom_point(data = exceptions, color = "red", size = 4) +  # 예외국가 강조
+  geom_text_repel(data = exceptions, aes(label = country),
+                  color = "red", size = 4) +  # 예외국가 라벨
+  labs(
+    x = "경제력·저축능력",
+    y = "인구구조",
+    color = "cluster",
+    title = "PCA 결과와 클러스터별 국가"
+  ) +
+  theme_minimal()
 
 
-# >> 인구 구조가 원인인가?
-cor(high_ddpi_low_sr$pop15, high_ddpi_low_sr$sr)
-cor(high_ddpi_low_sr$pop75, high_ddpi_low_sr$sr)
-
-lm_sr <- lm(sr ~ ddpi + pop15 + pop75, data = LifeCycleSavings)
-summary(lm_sr)
