@@ -1,7 +1,6 @@
 # 내장 데이터 불러오기
 data("LifeCycleSavings")
-View(LifeCycleSavings)
-length(LifeCycleSavings)
+
 # 데이터 확인
 head(LifeCycleSavings)
 str(LifeCycleSavings)
@@ -96,4 +95,5 @@ ggplot(pca_df, aes(x = 경제력_저축능력, y = 인구구조, color = cluster
     title = "PCA 결과와 클러스터별 국가"
   ) +
   theme_minimal()
+
 
